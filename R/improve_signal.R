@@ -1,5 +1,6 @@
 #' Improve signal
 #'
+#' @include cascade_defaults.R
 #' @include filter_fft.R
 #' @include signal_sharpening.R
 #'
@@ -23,16 +24,16 @@
 improve_signal <-
   function(
     df,
-    fourier_components = 0.01,
-    frequency = 2,
-    resample = 1,
-    time_min = 0,
-    time_max = Inf,
-    intensity_floor = 0.001,
-    k2 = 250,
-    k4 = 1250000,
-    sigma = 0.05,
-    smoothing_width = 8
+    fourier_components = cascade_defaults$fourier_components,
+    frequency = cascade_defaults$frequency,
+    resample = cascade_defaults$resample,
+    time_min = cascade_defaults$time_min,
+    time_max = cascade_defaults$time_max,
+    intensity_floor = cascade_defaults$intensity_floor,
+    k2 = cascade_defaults$k2,
+    k4 = cascade_defaults$k4,
+    sigma = cascade_defaults$sigma,
+    smoothing_width = cascade_defaults$smoothing_width
   ) {
     ## Ensure intensity values are strictly positive
     ## Shift by the absolute minimum value plus a small floor
@@ -75,7 +76,7 @@ improve_signal <-
       k2 = k2,
       k4 = k4,
       sigma = sigma,
-      Smoothing_width = smoothing_width
+      smoothing_width = smoothing_width
     )
 
     ## The signal sharpening function removes the first 4 points due to

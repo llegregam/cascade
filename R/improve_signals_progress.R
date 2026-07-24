@@ -1,5 +1,6 @@
 #' Improve signals progress
 #'
+#' @include cascade_defaults.R
 #' @include improve_signal.R
 #'
 #' @param xs List of dataframes with 'rtime' and 'intensity' columns
@@ -21,16 +22,16 @@
 #' @examples NULL
 improve_signals_progress <- function(
   xs,
-  fourier_components = 0.01,
-  frequency = 2,
-  resample = 1,
-  time_min = 0,
-  time_max = Inf,
-  intensity_floor = 0.001,
-  k2 = 250,
-  k4 = 1250000,
-  sigma = 0.05,
-  smoothing_width = 8
+  fourier_components = cascade_defaults$fourier_components,
+  frequency = cascade_defaults$frequency,
+  resample = cascade_defaults$resample,
+  time_min = cascade_defaults$time_min,
+  time_max = cascade_defaults$time_max,
+  intensity_floor = cascade_defaults$intensity_floor,
+  k2 = cascade_defaults$k2,
+  k4 = cascade_defaults$k4,
+  sigma = cascade_defaults$sigma,
+  smoothing_width = cascade_defaults$smoothing_width
 ) {
   xs |>
     purrr::map(

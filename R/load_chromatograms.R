@@ -1,7 +1,9 @@
 #' Load chromatograms
 #'
+#' @include cascade_defaults.R
+#'
 #' @param file File
-#' @param headers Headers
+#' @param headers Named vector mapping detector keys to `chromatogramId`s.
 #' @param show_example Show example? Default to FALSE
 #' @param example_polarity Example polarity
 #'
@@ -10,11 +12,7 @@
 #' @examples NULL
 load_chromatograms <- function(
   file = NULL,
-  headers = c(
-    "bpi" = "BasePeak_0",
-    "pda" = "PDA#1_TotalAbsorbance_0",
-    "cad" = "UV#1_CAD_1_0"
-  ),
+  headers = cascade_defaults$headers,
   show_example = FALSE,
   example_polarity = "pos"
 ) {

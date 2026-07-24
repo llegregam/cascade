@@ -1,5 +1,6 @@
 #' Preprocess peaks
 #'
+#' @include cascade_defaults.R
 #' @include join_peaks.R
 #' @include normalize_chromato.R
 #' @include peaks_progress.R
@@ -12,32 +13,40 @@
 #' @param df_long DF long
 #' @param df_xy DF X Y
 #' @param name Name
-#' @param shift shift
-#' @param min_area Minimum area
-#' @param sd_max Maximum standard deviation for peak filtering. Default is 50.
-#' @param max_iter Maximum iterations for peak fitting. Default is 1000.
-#' @param noise_threshold Noise threshold for peak detection. Default is 0.001.
-#' @param fit Peak fitting method. One of "egh", "gaussian", or "raw". Default
-#'   is "egh".
+#' @param shift Detector-vs-MS time offset, minutes.
+#' @param min_area Relative area cutoff: peak integral divided by the sum of all
+#'   peak integrals in the sample.
+#' @param min_area_absolute Absolute area cutoff, applied in addition to
+#'   `min_area`.
+#' @param sd_max Maximum fitted peak width, in grid points.
+#' @param max_iter Maximum iterations for peak fitting.
+#' @param fit Peak fitting method. One of "egh", "gaussian", or "raw".
+#' @param min_peak_height Detection sensitivity, as a fraction of the trace
+#'   maximum.
 #' @param intensity_threshold Minimum normalized intensity threshold for
-#'   filtering in normalize_chromato. Default is 0.1.
+#'   filtering in normalize_chromato.
+#' @param shapes Compute the per-peak normalised shapes used for MS comparison?
+#'   `FALSE` skips `normalize_chromato()`, `prepare_peaks()`, `prepare_rt()` and
+#'   `prepare_mz()`, which a purely visual QC pass never reads.
 #'
 #' @return A list of lists and dataframe with preprocessed peaks
 #'
 #' @examples NULL
 preprocess_peaks <- function(
-  detector = "cad",
+  detector = cascade_defaults$detector,
   df_features,
   df_long,
   df_xy,
   name,
-  shift = 0,
-  min_area = 0,
-  sd_max = 50,
-  max_iter = 1000,
-  noise_threshold = 0.001,
-  fit = "egh",
-  intensity_threshold = 0.1
+  shift = cascade_defaults$shift,
+  min_area = cascade_defaults$min_area,
+  min_area_absolute = cascade_defaults$min_area_absolute,
+  sd_max = cascade_defaults$sd_max,
+  max_iter = cascade_defaults$max_iter,
+  fit = cascade_defaults$fit,
+  min_peak_height = cascade_defaults$min_peak_height,
+  intensity_threshold = cascade_defaults$intensity_threshold,
+  shapes = TRUE
 ) {
   message("preprocessing ", detector, " peaks")
   ## data.table call outside of future because buggy else
@@ -45,8 +54,8 @@ preprocess_peaks <- function(
     df_xy = df_xy,
     sd_max = sd_max,
     max_iter = max_iter,
-    noise_threshold = noise_threshold,
-    fit = fit
+    fit = fit,
+    min_peak_height = min_peak_height
   )
 
   ## data.table call outside of future because buggy else
@@ -58,7 +67,8 @@ preprocess_peaks <- function(
     join_peaks(
       chromatograms = df_long,
       peaks = peaks_long,
-      min_area = min_area
+      min_area = min_area,
+      min_area_absolute = min_area_absolute
     )
 
   data.table::setkey(df_peaks, rt_min, rt_max)
@@ -98,32 +108,41 @@ preprocess_peaks <- function(
     list_df_features_with_peaks_per_peak |>
     purrr::flatten()
 
-  message("normalizing chromato")
-  list_chromato_with_peak <- list_df_features_with_peaks_long |>
-    purrr::map(
-      .f = normalize_chromato,
-      df_xy = df_xy,
-      intensity_threshold = intensity_threshold
-    )
+  ## The four artifacts below are only consumed by the MS comparison path.
+  ## check_peaks_integration() plots none of them, so it asks for shapes = FALSE
+  ## rather than paying for work it discards.
+  if (shapes) {
+    message("normalizing chromato")
+    list_chromato_with_peak <- list_df_features_with_peaks_long |>
+      purrr::map(
+        .f = normalize_chromato,
+        df_xy = df_xy,
+        intensity_threshold = intensity_threshold
+      )
 
-  message("preparing peaks chromato")
-  list_chromato_peaks <- list_chromato_with_peak |>
-    purrr::map(
-      .f = prepare_peaks
-    )
+    message("preparing peaks chromato")
+    list_chromato_peaks <- list_chromato_with_peak |>
+      purrr::map(
+        .f = prepare_peaks
+      )
 
-  message("preparing rt")
-  list_rtr <- list_df_features_with_peaks_long |>
-    purrr::map(
-      .f = prepare_rt,
-      shift = shift
-    )
+    message("preparing rt")
+    list_rtr <- list_df_features_with_peaks_long |>
+      purrr::map(
+        .f = prepare_rt,
+        shift = shift
+      )
 
-  message("preparing mz")
-  list_mzr <- list_df_features_with_peaks_long |>
-    purrr::map(
-      .f = prepare_mz
-    )
+    message("preparing mz")
+    list_mzr <- list_df_features_with_peaks_long |>
+      purrr::map(
+        .f = prepare_mz
+      )
+  } else {
+    list_chromato_peaks <- NULL
+    list_rtr <- NULL
+    list_mzr <- NULL
+  }
 
   returned_list <- list(
     list_df_features_with_peaks_long,

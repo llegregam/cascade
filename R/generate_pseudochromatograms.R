@@ -2,6 +2,7 @@
 #'
 #' @export
 #'
+#' @include cascade_params.R
 #' @include keep_best_candidates.R
 #' @include make_confident.R
 #' @include plot_results.R
@@ -29,6 +30,8 @@
 #' @param frequency Acquisition frequency in Hz. Default is 1.
 #' @param resample Resampling factor. Default is 1.
 #' @param shift Time shift in minutes. Default is 0.05.
+#' @param smoothing_width_minutes Smoothing width in minutes; overrides
+#'   `smoothing_width` when supplied.
 #' @param time_min Time min in minutes. Default is 0.5.
 #' @param time_max Time max in minutes. Default is 32.5.
 #' @param intensity_floor Small positive value for intensity floor. Default is
@@ -53,69 +56,84 @@ generate_pseudochromatograms <- function(
   features_informed = NULL,
   features_not_informed = NULL,
   file = NULL,
-  headers = c(
-    "bpi" = "BasePeak_0",
-    "pda" = "PDA#1_TotalAbsorbance_0",
-    "cad" = "UV#1_CAD_1_0"
-  ),
-  detector = "cad",
+  headers = cascade_defaults$headers,
+  detector = cascade_defaults$detector,
   show_example = FALSE,
   min_confidence = 0.4,
   min_similarity_prefilter = 0.6,
   min_similarity_filter = 0.8,
   mode = "pos",
   organism = "Swertia chirayita",
-  fourier_components = 0.01,
-  frequency = 1,
-  resample = 1,
-  shift = 0.05,
-  time_min = 0.5,
-  time_max = 32.5,
-  intensity_floor = 0.001,
-  k2 = 250,
-  k4 = 1250000,
-  sigma = 0.05,
-  smoothing_width = 8,
-  baseline_method = "peakDetection",
-  improve_signal = TRUE
+  fourier_components = cascade_defaults$fourier_components,
+  frequency = cascade_defaults$frequency,
+  resample = cascade_defaults$resample,
+  shift = cascade_defaults$shift,
+  time_min = cascade_defaults$time_min,
+  time_max = cascade_defaults$time_max,
+  intensity_floor = cascade_defaults$intensity_floor,
+  k2 = cascade_defaults$k2,
+  k4 = cascade_defaults$k4,
+  sigma = cascade_defaults$sigma,
+  smoothing_width = cascade_defaults$smoothing_width,
+  smoothing_width_minutes = cascade_defaults$smoothing_width_minutes,
+  baseline_method = cascade_defaults$baseline_method,
+  improve_signal = cascade_defaults$improve_signal
 ) {
+  ## Validate at the door, exactly as the other entry points do.
+  params <- cascade_params(
+    detector = detector,
+    headers = headers,
+    time_min = time_min,
+    time_max = time_max,
+    shift = shift,
+    frequency = frequency,
+    resample = resample,
+    improve_signal = improve_signal,
+    fourier_components = fourier_components,
+    intensity_floor = intensity_floor,
+    smoothing_width = smoothing_width,
+    smoothing_width_minutes = smoothing_width_minutes,
+    k2 = k2,
+    k4 = k4,
+    sigma = sigma,
+    baseline_method = baseline_method
+  )
+
   message("loading annotations")
   annotation_table <- annotations |>
     load_annotations(show_example = show_example)
 
   message("loading chromatograms")
   chromatograms_all <- file |>
-    load_chromatograms(show_example = show_example, headers = headers)
+    load_chromatograms(show_example = show_example, headers = params$headers)
 
   message("loading name")
   name <- file |>
     load_name(show_example = show_example)
 
   message("preprocessing chromatograms")
-  switch <- switch(
-    detector,
-    "bpi" = headers["bpi"],
-    "cad" = headers["cad"],
-    "pda" = headers["pda"]
-  )
-  list <- chromatograms_all[switch |> names()]
+  ## `detector` was validated against names(headers), so this subset is safe.
+  ## (Previously this block used local variables named `switch` and `list`,
+  ## shadowing the base functions of the same name.)
+  channel <- params$headers[params$detector]
+  trace <- chromatograms_all[names(channel)]
   chromatograms_list <- preprocess_chromatograms(
-    detector = detector,
+    detector = params$detector,
     name = name,
-    list = list,
-    shift = shift,
-    fourier_components = fourier_components,
-    time_min = time_min,
-    time_max = time_max,
-    frequency = frequency,
-    resample = resample,
-    intensity_floor = intensity_floor,
-    k2 = k2,
-    k4 = k4,
-    sigma = sigma,
-    smoothing_width = smoothing_width,
-    baseline_method = baseline_method,
-    improve_signal = improve_signal
+    list = trace,
+    shift = params$shift,
+    fourier_components = params$fourier_components,
+    time_min = params$time_min,
+    time_max = params$time_max,
+    frequency = params$frequency,
+    resample = params$resample,
+    intensity_floor = params$intensity_floor,
+    k2 = params$k2,
+    k4 = params$k4,
+    sigma = params$sigma,
+    smoothing_width = params$smoothing_width,
+    baseline_method = params$baseline_method,
+    improve_signal = params$improve_signal
   )
 
   message("keeping only best candidates above desired threshold")

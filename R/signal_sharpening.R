@@ -1,20 +1,20 @@
 #' Signal sharpening
 #'
+#' @include cascade_defaults.R
 #' @include second_der.R
 #'
 #' @param time time
 #' @param intensity intensity
-#' @param k2 K2 parameter controlling the weight of the second derivative in
-#'   signal sharpening. Default is 250. Lower values increase the sharpening
-#'   effect from the second derivative.
-#' @param k4 K4 parameter controlling the weight of the fourth derivative in
-#'   signal sharpening. Default is 1250000. Lower values increase the
+#' @param k2 Divisor of the second-derivative term. Lower values increase the
+#'   sharpening effect from the second derivative.
+#' @param k4 Divisor of the fourth-derivative term. Lower values increase the
 #'   sharpening effect from the fourth derivative.
-#' @param sigma Sigma parameter for derivative weighting. Default is 0.05.
-#'   Higher values increase the overall sharpening effect.
-#' @param Smoothing_width Smoothing width for the running mean filter. Default
-#'   is 8. Higher values provide more smoothing but reduce resolution.
-#' @param Baseline_adjust Baseline adjustment value. Default is 0.
+#' @param sigma Overall sharpening gain. Higher values increase the effect.
+#' @param smoothing_width Smoothing width for the running mean filter, in grid
+#'   points. Higher values provide more smoothing but reduce resolution.
+#'   Formerly spelled `Smoothing_width`.
+#' @param baseline_adjust Baseline adjustment value. Formerly spelled
+#'   `Baseline_adjust`.
 #'
 #' @return A sharpened signal
 #'
@@ -22,22 +22,22 @@
 signal_sharpening <- function(
   time,
   intensity,
-  k2 = 250,
-  k4 = 1250000,
-  sigma = 0.05,
-  Smoothing_width = 8,
-  Baseline_adjust = 0
+  k2 = cascade_defaults$k2,
+  k4 = cascade_defaults$k4,
+  sigma = cascade_defaults$sigma,
+  smoothing_width = cascade_defaults$smoothing_width,
+  baseline_adjust = 0
 ) {
   smooth_1 <- caTools::runmean(
     x = intensity,
-    k = Smoothing_width,
+    k = smoothing_width,
     align = "center"
   ) +
-    Baseline_adjust
+    baseline_adjust
 
   smooth_2 <- caTools::runmean(
     x = smooth_1,
-    k = Smoothing_width,
+    k = smoothing_width,
     align = "center"
   )
 
@@ -48,7 +48,7 @@ signal_sharpening <- function(
 
   smooth_3 <- caTools::runmean(
     x = deriv_2,
-    k = Smoothing_width,
+    k = smoothing_width,
     align = "center"
   )
 
@@ -59,7 +59,7 @@ signal_sharpening <- function(
 
   smooth_4 <- caTools::runmean(
     x = deriv_4,
-    k = Smoothing_width,
+    k = smoothing_width,
     align = "center"
   )
 

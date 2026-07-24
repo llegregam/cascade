@@ -1,13 +1,20 @@
 #' Transform MS
 #'
+#' @include cascade_defaults.R
+#'
 #' @param x X
 #' @param min_intensity Minimum normalized intensity threshold for filtering.
-#'   Default is 0.1. Set to 0 to keep all points.
+#'   Set to 0 to keep all points. Shares its default with
+#'   `cascade_defaults$intensity_threshold`, since both trim a normalised peak
+#'   before shape comparison.
 #'
 #' @return A list with transformed MS
 #'
 #' @examples NULL
-transform_ms <- function(x, min_intensity = 0.1) {
+transform_ms <- function(
+  x,
+  min_intensity = cascade_defaults$intensity_threshold
+) {
   custom_min <- function(x) {
     if (length(x) > 0) {
       min(x)

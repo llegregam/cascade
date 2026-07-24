@@ -2,22 +2,32 @@
 #'
 #' @author Ethan Bass
 #'
+#' @include cascade_defaults.R
+#'
 #' @note
 #' This was imported from \{chromatographR\} package and parallelization
 #' was removed as it was causing issues on Windows.
+#'
+#' Two deliberate divergences from upstream, to keep one naming convention
+#' across cascade: `sd.max`/`max.iter` are spelled `sd_max`/`max_iter` (the dotted
+#' forms still work but warn), and `max_iter` defaults to 1000 rather than
+#' upstream's 100, matching every caller in this package.
 #'
 #' @source https://github.com/ethanbass/chromatographR
 #'
 #' @param chrom_list Chrom list
 #' @param lambdas Lambdas
 #' @param fit Fit
-#' @param sd.max Sd max
-#' @param max.iter Max iter
+#' @param sd_max Maximum fitted peak width, in grid points.
+#' @param max_iter Maximum NLS iterations.
+#' @param sd.max Deprecated. Use `sd_max`.
+#' @param max.iter Deprecated. Use `max_iter`.
 #' @param time.units Time units
 #' @param estimate_purity Estimate purity
-#' @param noise_threshold Noise Threshold
+#' @param noise_threshold Deprecated and inert: only reaches `get_purity()`,
+#'   which is disabled whenever the input has a single column.
 #' @param collapse Collapse
-#' @param ... ...
+#' @param ... Passed through to `find_peaks()`, notably `amp_thresh`.
 #'
 #' @return Peaks
 #'
@@ -26,14 +36,25 @@ get_peaks <- function(
   chrom_list,
   lambdas,
   fit = c("egh", "gaussian", "raw"),
-  sd.max = 50,
-  max.iter = 100,
+  sd_max = cascade_defaults$sd_max,
+  max_iter = cascade_defaults$max_iter,
+  sd.max = NULL,
+  max.iter = NULL,
   time.units = c("min", "s", "ms"),
   estimate_purity = FALSE,
   noise_threshold = 0.001,
   collapse = FALSE,
   ...
 ) {
+  ## Accept the upstream chromatographR spellings for one deprecation cycle.
+  if (!is.null(sd.max)) {
+    deprecate_arg("sd.max", "sd_max", "get_peaks")
+    sd_max <- sd.max
+  }
+  if (!is.null(max.iter)) {
+    deprecate_arg("max.iter", "max_iter", "get_peaks")
+    max_iter <- max.iter
+  }
   remove_bad_peaks <- function(pks, n) {
     # keep only peaks with a fully defined position whose fitted apex index
     # (rt) falls within the chromatogram's valid scan range [1, n]
@@ -445,7 +466,7 @@ get_peaks <- function(
               )
               if (!fit.floor) {
                 nlsAns <- try(
-                  nlsLM(
+                  minpack.lm::nlsLM(
                     y ~ gaussian(x, center, width, height),
                     start = starts,
                     control = controlList
@@ -458,7 +479,7 @@ get_peaks <- function(
                 }
                 starts <- c(starts, "floor" = start.floor)
                 nlsAns <- try(
-                  nlsLM(
+                  minpack.lm::nlsLM(
                     y ~ gaussian(x, center, width, height, floor),
                     start = starts,
                     control = controlList
@@ -604,7 +625,7 @@ get_peaks <- function(
               )
               if (!fit.floor) {
                 nlsAns <- try(
-                  nlsLM(
+                  minpack.lm::nlsLM(
                     y1 ~ egh(x1, center, width, height, tau),
                     start = starts,
                     control = controlList
@@ -617,7 +638,7 @@ get_peaks <- function(
                 }
                 starts <- c(starts, "floor" = start.floor)
                 nlsAns <- try(
-                  nlsLM(
+                  minpack.lm::nlsLM(
                     y1 ~ egh(x1, center, width, height, tau, floor),
                     start = starts,
                     control = controlList
@@ -779,14 +800,17 @@ get_peaks <- function(
           chrom_list[[sample]],
           lambda = lambda,
           fit = fit,
-          max.iter = max.iter,
-          sd.max = sd.max,
+          max.iter = max_iter,
+          sd.max = sd_max,
           estimate_purity = estimate_purity,
           noise_threshold = noise_threshold,
           ...
         )
         pks <- cbind(sample = names(chrom_list)[sample], lambda, pks)
-        pks <- remove_bad_peaks(pks)
+        ## `n` is the chromatogram's scan count: remove_bad_peaks() uses it as
+        ## the upper bound of the valid apex-index range. It is required, not
+        ## optional -- omitting it errors on `pks[, "rt"] <= n`.
+        pks <- remove_bad_peaks(pks, n = nrow(chrom_list[[sample]]))
         pks <- convert_indices_to_times(
           pks,
           chrom_list = chrom_list,
@@ -808,8 +832,8 @@ get_peaks <- function(
     chrom_list = chrom_list_string,
     lambdas = lambdas,
     fit = fit,
-    sd.max = sd.max,
-    max.iter = max.iter,
+    sd_max = sd_max,
+    max_iter = max_iter,
     time.units = time.units,
     class = "peak_list"
   )

@@ -42,7 +42,9 @@ plot_peak_detection <- function(df1, df2, fun) {
     plotly::add_trace(
       data = df2,
       x = ~rt_max,
-      y = ~ do.call(what = fun, args = list(rt_min)),
+      ## Was `list(rt_min)`: the end marker took its height from the peak's
+      ## START retention time, so on a tailing peak it sat at the wrong height.
+      y = ~ do.call(what = fun, args = list(rt_max)),
       yaxis = "y2",
       type = "scatter",
       marker = list(color = "33a02c", symbol = "triangle-left"),

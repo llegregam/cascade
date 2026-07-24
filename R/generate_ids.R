@@ -43,12 +43,7 @@ generate_ids <- function(
   query_part_3 <- " ) && ((YEAR(?art_date)) <= "
   query_part_4 <- " ))\n  SERVICE wikibase:label { bd:serviceParam wikibase:language \"[AUTO_LANGUAGE], mul, en\". }\n}"
 
-  message("Getting last LOTUS version")
-  tima::get_last_version_from_zenodo(
-    doi = "10.5281/zenodo.5794106",
-    pattern = "frozen_metadata.csv.gz",
-    "data/source/libraries/lotus.csv.gz"
-  )
+  get_lotus()
 
   message("Loading LOTUS classified structures")
   structures_classified <- tidytable::fread(

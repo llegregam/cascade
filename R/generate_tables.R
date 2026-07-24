@@ -63,12 +63,7 @@ generate_tables <- function(
     tidytable::mutate(feature_id = as.numeric(feature_id)) |>
     make_confident(score = min_confidence)
 
-  message("Getting last LOTUS version")
-  tima::get_last_version_from_zenodo(
-    doi = "10.5281/zenodo.5794106",
-    pattern = "frozen_metadata.csv.gz",
-    "data/source/libraries/lotus.csv.gz"
-  )
+  get_lotus()
 
   message("Loading LOTUS classified structures")
   lotus <- tidytable::fread(

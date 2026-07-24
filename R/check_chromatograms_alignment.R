@@ -3,6 +3,7 @@
 #' @export
 #'
 #' @include baseline_chromatogram.R
+#' @include cascade_params.R
 #' @include check_chromatograms.R
 #' @include extract_chromatogram.R
 #' @include improve_signal.R
@@ -11,10 +12,14 @@
 #'
 #' @param file_negative Negative file path
 #' @param file_positive Positive file path
-#' @param time_min Minimum time in minutes. Default is 0.5.
-#' @param time_max Maximum time in minutes. Default is 32.5.
-#' @param cad_shift CAD time shift in minutes. Default is 0.05.
-#' @param pda_shift PDA time shift in minutes. Default is 0.1.
+#' @param time_min Minimum time in minutes.
+#' @param time_max Maximum time in minutes.
+#' @param cad_shift CAD time shift in minutes.
+#' @param pda_shift PDA time shift in minutes. Now defaults to the same value as
+#'   `cad_shift`; it previously defaulted to 0.1 against CAD's 0.05, which was
+#'   arbitrary rather than an instrument property.
+#' @param smoothing_width_minutes Smoothing width in minutes; overrides
+#'   `smoothing_width` when supplied.
 #' @param fourier_components Fraction of Fourier components to keep. Default is
 #'   0.01.
 #' @param frequency Acquisition frequency in Hz. Default is 1.
@@ -48,31 +53,52 @@
 check_chromatograms_alignment <- function(
   file_negative = NULL,
   file_positive = NULL,
-  time_min = 0.5,
-  time_max = 32.5,
-  cad_shift = 0.05,
-  pda_shift = 0.1,
-  fourier_components = 0.01,
-  frequency = 1,
-  resample = 1,
+  time_min = cascade_defaults$time_min,
+  time_max = cascade_defaults$time_max,
+  cad_shift = cascade_defaults$shift,
+  pda_shift = cascade_defaults$shift,
+  fourier_components = cascade_defaults$fourier_components,
+  frequency = cascade_defaults$frequency,
+  resample = cascade_defaults$resample,
   chromatograms = c("bpi_pos", "cad_pos", "pda_pos"),
-  headers = c(
-    "bpi" = "BasePeak_0",
-    "pda" = "PDA#1_TotalAbsorbance_0",
-    "cad" = "UV#1_CAD_1_0"
-  ),
-  type = "baselined",
+  headers = cascade_defaults$headers,
+  type = cascade_defaults$chromatogram,
   normalize_intensity = TRUE,
   normalize_time = FALSE,
   show_example = FALSE,
-  intensity_floor = 0.001,
-  k2 = 250,
-  k4 = 1250000,
-  sigma = 0.05,
-  smoothing_width = 8,
-  baseline_method = "peakDetection",
-  improve_signal = TRUE
+  intensity_floor = cascade_defaults$intensity_floor,
+  k2 = cascade_defaults$k2,
+  k4 = cascade_defaults$k4,
+  sigma = cascade_defaults$sigma,
+  smoothing_width = cascade_defaults$smoothing_width,
+  smoothing_width_minutes = cascade_defaults$smoothing_width_minutes,
+  baseline_method = cascade_defaults$baseline_method,
+  improve_signal = cascade_defaults$improve_signal
 ) {
+  ## Validate at the door. This function draws several traces at once, so it
+  ## has no single `detector`; validation runs against "cad" purely to exercise
+  ## the shared numeric and enum checks, and the resolved values are used below.
+  params <- cascade_params(
+    detector = "cad",
+    chromatogram = if (type == "original") "original" else type,
+    headers = headers,
+    time_min = time_min,
+    time_max = time_max,
+    shift = cad_shift,
+    frequency = frequency,
+    resample = resample,
+    improve_signal = improve_signal,
+    fourier_components = fourier_components,
+    intensity_floor = intensity_floor,
+    smoothing_width = smoothing_width,
+    smoothing_width_minutes = smoothing_width_minutes,
+    k2 = k2,
+    k4 = k4,
+    sigma = sigma,
+    baseline_method = baseline_method
+  )
+  check_number(pda_shift, "pda_shift")
+  smoothing_width <- params$smoothing_width
   ## Helper function to process a single chromatogram
   process_chromatogram <- function(
     chromatogram_df,

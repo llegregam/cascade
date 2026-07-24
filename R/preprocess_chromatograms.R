@@ -1,6 +1,7 @@
 #' Preprocess chromatograms
 #'
 #' @include baseline_chromatogram.R
+#' @include cascade_defaults.R
 #' @include change_intensity_name.R
 #' @include improve_signals_progress.R
 #'
@@ -31,22 +32,22 @@
 #'
 #' @examples NULL
 preprocess_chromatograms <- function(
-  detector = "cad",
-  fourier_components = 0.01,
-  frequency = 2,
+  detector = cascade_defaults$detector,
+  fourier_components = cascade_defaults$fourier_components,
+  frequency = cascade_defaults$frequency,
   list,
   name,
-  resample = 1,
-  shift = 0,
-  time_min = 0,
-  time_max = Inf,
-  intensity_floor = 0.001,
-  k2 = 250,
-  k4 = 1250000,
-  sigma = 0.05,
-  smoothing_width = 8,
-  baseline_method = "peakDetection",
-  improve_signal = TRUE
+  resample = cascade_defaults$resample,
+  shift = cascade_defaults$shift,
+  time_min = cascade_defaults$time_min,
+  time_max = cascade_defaults$time_max,
+  intensity_floor = cascade_defaults$intensity_floor,
+  k2 = cascade_defaults$k2,
+  k4 = cascade_defaults$k4,
+  sigma = cascade_defaults$sigma,
+  smoothing_width = cascade_defaults$smoothing_width,
+  baseline_method = cascade_defaults$baseline_method,
+  improve_signal = cascade_defaults$improve_signal
 ) {
   message("preprocessing ", detector, " chromatograms")
   chromatograms_original <- list

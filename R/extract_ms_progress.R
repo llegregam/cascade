@@ -1,15 +1,16 @@
 #' Extract MS progress
 #'
-#' @param xs XS
+#' @param xs Integer indices into `rts`/`mzs`, one per matched peak.
 #' @param ms_data MS Data
 #' @param rts RTs
 #' @param mzs MZs
-#' @param nrows N rows
+#' @param nrows Deprecated and ignored. It was accepted and threaded through the
+#'   inner map but never read.
 #'
 #' @return A list of extracted MS peaks
 #'
 #' @examples NULL
-extract_ms_progress <- function(xs, ms_data, rts, mzs, nrows) {
+extract_ms_progress <- function(xs, ms_data, rts, mzs, nrows = NULL) {
   safe_chromatogram <- function(ms_data, rt, mz, max_attempts = 10) {
     for (attempt in seq_len(max_attempts)) {
       tryCatch(
@@ -50,18 +51,19 @@ extract_ms_progress <- function(xs, ms_data, rts, mzs, nrows) {
   xs |>
     purrr::map(
       .progress = TRUE,
-      .f = function(x, ms_data, rts, mzs, nrows) {
-        message("CAD Peak: ", x)
+      .f = function(x, ms_data, rts, mzs) {
+        message("Peak: ", x)
         safe_chromatogram(
           ms_data = ms_data,
           rt = rts[[x]],
+          ## One m/z window per feature in this peak; rbind them into the
+          ## single matrix MSnbase::chromatogram() expects.
           mz = Reduce(f = rbind, x = mzs[[x]])
         ) |>
           transform_ms()
       },
       ms_data = ms_data,
       rts = rts,
-      mzs = mzs,
-      nrows = nrows
+      mzs = mzs
     )
 }
