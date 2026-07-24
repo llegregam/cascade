@@ -1,6 +1,7 @@
 # CASCADE parameter-uniformity refactor — actionable plan
 
-**Status:** proposed, not started
+**Status:** IMPLEMENTED (2026-07-24). See §7 for what landed and what still needs
+running in a full environment.
 **Written:** 2026-07-24
 **Scope:** the parameter surface of the four exported entry points and the helper
 chain beneath them. No change to the scientific method.
@@ -9,16 +10,14 @@ chain beneath them. No change to the scientific method.
 
 ## 0. How to use this file
 
-Hand this file back to Claude Code with something like:
-
-> Read `notes/refactor_plan.md` and execute Phase 1. Do not start Phase 2.
-
-Each phase is independently shippable and has explicit acceptance criteria.
-Phase 0 (the golden-output test) **must** land before any other phase, because
-every later phase is justified only if it provably does not change results.
+The phases below were executed. This file is now the record of *why* each change
+was made — the evidence in §2 is the justification for the design in §3, and §7
+records the outcome. Keep it: if a future change reintroduces a literal default
+or a second parameter surface, §2 is the argument against it.
 
 Companion documents:
-- `notes/peak_pipeline.md` — line-by-line walkthrough of the code as it is today.
+- `notes/peak_pipeline.md` — line-by-line walkthrough (describes the **pre**-refactor
+  code; still accurate for the science, stale for the call structure).
 - `notes/pipeline_concepts.md` — the science behind the pipeline.
 
 ---
@@ -304,6 +303,128 @@ identical peak tables via `check_peaks_integration` and `process_compare_peaks`
 
 Every default reconciliation gets its own `NEWS.md` bullet stating old value, new
 value, and which results can move.
+
+---
+
+## 7. Outcome (2026-07-24)
+
+### What landed
+
+| Phase | Status | Where |
+|---|---|---|
+| 0 — golden-output test | Done | `tests/testthat/test-golden-pipeline.R` |
+| 1.1 — central defaults | Done | `R/cascade_defaults.R` |
+| 1.2 — reconcile drift | Done | all six, recorded in `NEWS.md` |
+| 1.3 — validation | Done | `R/cascade_params.R`, `tests/testthat/test-params.R` |
+| 1.4 — bugs 1,2,3,6 | Done | + a 7th found during the work (below) |
+| 2.1 — naming | Done | `type`→`chromatogram`, `sd.max`→`sd_max`, `Smoothing_width`→`smoothing_width` |
+| 2.2 — return values | Done | `process_compare_peaks()` returns a list; QC figure carries `attr(,"peaks")` |
+| 2.3 — provenance sidecar | Done | `<name>_params_<detector>.tsv` (TSV not JSON, to avoid a new dependency) |
+| 3.1 — shared front half | Done | `R/cascade_run.R` |
+| 3.2 — full surface | Done | `process_compare_peaks()` went 15 → 31 parameters |
+| 3.3 — run passthrough | Done | accepted via `run =` **or** positionally in `file` |
+| 4.1 — `min_peak_height` | Done | plumbed to `find_peaks()`'s `amp_thresh` |
+| 4.2 — unit-aware params | Done | added `sd_max_minutes`, `smoothing_width_minutes` |
+| 4.3 — `min_area` split | Done | added `min_area_absolute` |
+| 4.4 — dead parameters | Done | `noise_threshold` deprecated, `nrows` ignored, `shapes=FALSE` skips unused work |
+
+### Deviations from the plan, and why
+
+1. **`sd_max` was not redefined to mean minutes.** Reinterpreting `sd_max = 50`
+   from 50 points to 50 minutes would silently disable the filter for every
+   existing script. Added `sd_max_minutes` / `smoothing_width_minutes` as
+   separate overriding parameters instead — non-breaking and explicit about unit.
+2. **Provenance sidecar is TSV, not JSON.** `jsonlite` is not in `Imports`;
+   `tidytable::fwrite` already is. Same information, no new dependency.
+3. **Deprecation uses `warning()`, not `lifecycle`.** `lifecycle` is in
+   `Suggests`, so every call would need a `requireNamespace()` guard. `R/cascade_defaults.R`
+   has a four-line `deprecate_arg()` instead.
+4. **`run` is not the first positional argument.** Making it first would break
+   every existing positional `f(file, features)` call. It is a named argument,
+   and `file` additionally accepts a `cascade_run` (a run object is never a path,
+   so this is unambiguous). Both `f(run = run)` and `f(run)` work.
+
+### Bug 7, found during the work
+
+`R/get_peaks.R` called `remove_bad_peaks(pks)` while the function requires
+`remove_bad_peaks(pks, n)`, where `n` bounds the valid apex-index range. This
+errors at peak detection. The `n = nrow(chrom_list[[sample]])` argument was
+restored. This was introduced between the plan being written and the refactor
+starting — worth a look at how, since it would have broken every run.
+
+### Dependency changes that made the pipeline runnable
+
+Two problems blocked the package from even loading, both resolved:
+
+1. **`tima` moved from `Imports` to `Suggests`.** It was a hard dependency but is
+   used in exactly two places, both `get_last_version_from_zenodo()` calls that
+   download LOTUS for the *annotation* path (`generate_ids()`,
+   `generate_tables()`). The peak-integration and alignment workflow never
+   touches it. Both call sites now go through `R/get_lotus.R`, which checks for
+   the package and explains how to install it if genuinely needed. The package
+   now loads without `tima`.
+
+2. **`minpack.lm` added to `Imports`, and `nlsLM()` qualified.** It was called
+   unqualified in `get_peaks()` and was not declared anywhere. Because every fit
+   is wrapped in `try()`, a missing `nlsLM` did **not** error — it silently fell
+   back to the starting estimates, so peaks were still reported, just never
+   actually fitted. This is now `minpack.lm::nlsLM()` with a declared dependency.
+
+### Verification status — all green
+
+Run with R 4.5.3 on Windows, `pkgload::load_all()` + `testthat::test_dir()`:
+
+```
+failed : 0
+error  : 0
+passed : 122
+skipped: 0
+```
+
+**Static checks:**
+- All 83 R files parse; `Collate` lists every file exactly once.
+- Every call site in `R/` and `scripts/cascade_wrapper_LLE.r` uses argument names
+  that exist in the callee (catches renames that missed a caller).
+- A static audit confirms no shared parameter carries a literal default, except
+  genuine name collisions (`query_wikidata`'s HTTP `headers`,
+  `prepare_hierarchy`'s `detector = "ms"` label, neutral `shift = 0` in plotting
+  helpers).
+
+**Executed against the bundled example data:**
+- `cascade_run(show_example = TRUE)` detects 49 peaks over 0.883–31.317 min and
+  matches 3800 (feature × peak) units.
+- `check_peaks_integration()` returns a plotly widget carrying a 3800-row `peaks`
+  attribute and a `cascade_params` object.
+- `process_compare_peaks(show_example = TRUE)` writes all three files, returns
+  13 informed / 2 not-informed features with identical schemas, and scores
+  spanning −0.895 to 0.975.
+- Validation fires as designed:
+  `chromatogram = "baslined"` →
+  ``Error : `chromatogram` must be one of "baselined", "improved", "original", not "baslined".``
+- A `shapes = FALSE` run is refused by the scorer with a message telling you how
+  to rebuild it.
+
+**The key claim, tested directly:** at a non-default `sigma = 0.08` /
+`fourier_components = 0.02`, the QC run and the export run produce **identical
+peak apices**. This is the test that fails on pre-refactor code, because
+`process_compare_peaks()` used to ignore both parameters.
+
+Golden snapshots are committed at `tests/testthat/_snaps/golden-pipeline.md`.
+They were written by this first run, so they encode *post*-refactor behaviour —
+if you want proof that nothing moved, diff against a pre-refactor checkout
+rather than trusting the snapshot alone.
+
+`NAMESPACE` was hand-edited for the new exports; run `devtools::document()` to
+regenerate it and the `man/*.Rd` files properly.
+
+### Observation worth following up
+
+Comparison scores are correlations and can be **negative** (the example run
+reaches −0.895). `prepare_comparison()` filters with `comparison_score >=
+min_similarity_prefilter` and carries a `## TODO check negative values` note.
+A strongly negative score means the EIC is *anti*-correlated with the detector
+peak, which is arguably more informative than a score near zero. Decide whether
+those should be filtered on absolute value.
 
 ---
 

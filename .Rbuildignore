@@ -17,6 +17,7 @@ CITATION.cff
 ^cran-comments\.md$
 ^data$
 ^docs$
+^notes$
 ^pkgdown$
 ^prek[.]toml$
 ^renv$
