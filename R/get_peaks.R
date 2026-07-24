@@ -786,7 +786,7 @@ get_peaks <- function(
           ...
         )
         pks <- cbind(sample = names(chrom_list)[sample], lambda, pks)
-        pks <- remove_bad_peaks(pks, n=nrow(chrom_list[[sample]]))
+        pks <- remove_bad_peaks(pks)
         pks <- convert_indices_to_times(
           pks,
           chrom_list = chrom_list,

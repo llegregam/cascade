@@ -6,14 +6,14 @@ ci = { autoupdate_schedule = "monthly" }
 
 [[repos]]
 repo = "https://github.com/posit-dev/air-pre-commit"
-rev = "0.10.0"
+rev = "0.11.0"
 hooks = [
   { id = "air-format" }
 ]
 
 [[repos]]
 repo = "https://github.com/lorenzwalthert/precommit"
-rev = "v0.4.3.9029"
+rev = "v0.4.3.9030"
 hooks = [
   { id = "use-tidy-description" },
   { id = "parsable-R" },
@@ -56,7 +56,7 @@ hooks = [
 
 [[repos]]
 repo = "https://github.com/jolars/panache-pre-commit"
-rev = "v2.61.0"
+rev = "v3.0.0"
 hooks = [
   { id = "panache-format" },
   { id = "panache-lint" }
