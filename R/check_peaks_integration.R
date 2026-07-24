@@ -83,22 +83,36 @@ check_peaks_integration <- function(
   intensity_threshold = 0.1,
   improve_signal = TRUE
 ) {
+  ## ---- 1. Load raw inputs ------------------------------------------------
+  ## Named list (bpi/pda/cad) of detector traces read from the mzML via mzR.
+  ## Only the chromatogram channels listed in `headers` are pulled.
   message("loading chromatograms")
   chromatograms_all <- file |>
     load_chromatograms(show_example = show_example, headers = headers)
 
+  ## Sample name = basename(file). Needed because the MZmine export is
+  ## multi-sample: columns are keyed "datafile:<name>:rt_range:min" etc.
   message("loading name")
   name <- file |>
     load_name(show_example = show_example)
 
+  ## Raw MZmine "comprehensive export" table (one row per feature).
   message("loading feature table")
   feature_table <- features |>
     load_features(show_example = show_example)
 
+  ## Reshape to cascade's schema, keep status == "DETECTED" and
+  ## intensity_max >= min_intensity, then setkey(rt_1, rt_2) so the
+  ## interval join in preprocess_peaks() can use it directly.
   message("preparing features")
   df_features <- feature_table |>
     prepare_features(min_intensity = min_intensity, name = name)
 
+  ## ---- 2. Signal processing on the chosen detector ------------------------
+  ## NB: `switch` and `list` shadow the base-R functions of the same name.
+  ## Legacy style, harmless in this scope. `switch` holds a *named* vector
+  ## (name = "cad", value = "UV#1_CAD_1_0"); names() recovers the short key
+  ## used to index into chromatograms_all.
   message("Preprocessing chromatograms")
   switch <- switch(
     detector,
@@ -125,7 +139,15 @@ check_peaks_integration <- function(
     baseline_method = baseline_method,
     improve_signal = improve_signal
   )
+  ## Returns 6 objects: {original, improved, baselined} x {wide, _long}.
+  ## "wide"  = list of (rtime, intensity) data.frames -> fed to the NLS fitter
+  ## "_long" = row-bound with an `id` column + degenerate rt_1/rt_2 interval
+  ##           columns -> fed to the data.table interval joins.
 
+  ## ---- 3. Detect peaks and match them to features -------------------------
+  ## `chromatogram` picks which of the three trace versions to work on.
+  ## df_long is height-normalised to [0, 1]; df_xy is the same trace in wide
+  ## form ([[1]] unwraps the single-sample list).
   peaks <-
     preprocess_peaks(
       df_features = df_features,
@@ -152,6 +174,10 @@ check_peaks_integration <- function(
       intensity_threshold = intensity_threshold
     )
 
+  ## ---- 4. Build the plotting tables ---------------------------------------
+  ## One long, height-normalised table for the signal line.
+  ## Quirk: the "original" branch also keeps every 10th point only, to thin
+  ## the un-resampled raw trace. improved/baselined are already resampled.
   chromatogram_normalized <- switch(
     chromatogram,
     "original" = chromatograms_list$chromatograms_original_long |>
@@ -166,6 +192,7 @@ check_peaks_integration <- function(
       tidytable::mutate(intensity = intensity / max(intensity))
   )
 
+  ## Detected-peak markers, put on the same [0, 1] axis as the signal.
   peaks_normalized <- peaks$list_df_features_with_peaks_long |>
     tidytable::bind_rows() |>
     tidytable::mutate(
@@ -173,6 +200,9 @@ check_peaks_integration <- function(
       peak_max = peak_max / max(peak_max)
     )
 
+  ## Linear interpolator over the trace (~ scipy.interpolate.interp1d).
+  ## plot_peak_detection() calls it to read the trace height at a peak's
+  ## start/end retention time, so the boundary markers sit on the curve.
   approx_f <- stats::approxfun(
     x = chromatogram_normalized |>
       tidytable::pull(rtime),
@@ -180,6 +210,8 @@ check_peaks_integration <- function(
       tidytable::pull(intensity)
   )
 
+  ## ---- 5. Draw ------------------------------------------------------------
+  ## Last expression = return value: an interactive plotly widget.
   chromatogram_normalized |>
     plot_peak_detection(df2 = peaks_normalized, fun = approx_f)
 }
